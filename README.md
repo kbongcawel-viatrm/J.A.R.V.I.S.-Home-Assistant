@@ -237,6 +237,8 @@ classifier (`MIT/ast-finetuned-audioset-10-10-0.4593`, downloaded once to the
 HF cache) before STT. Clips dominated by dog barks, baby cries, other animal
 sounds, or non-speech vocalizations are dropped (`--sound-gate` /
 `--no-sound-gate`, `--gate-threshold`, `--gate-margin`, `--gate-model`).
+The gate model unloads after 15 min of silence (`--gate-idle-unload`,
+0 disables) to save RAM and reloads on the next utterance.
 
 Commands: every command requires the wake word (`jarvis check status`,
 `jarvis restart containers`, ...). There is no command window — whisper

@@ -240,6 +240,7 @@ class Assistant:
         self._speaking_until = 0.0   # echo suppression until (epoch)
         self._gate = None
         self._gate_failed = False
+        self._gate_last_use = 0.0
 
     def _reject_non_speech(self, audio):
         """Drop clips the sound gate classifies as dog/baby cries etc."""
@@ -255,6 +256,7 @@ class Assistant:
                 log(f"sound gate unavailable, continuing without it: {e}")
         if self._gate is None:
             return False
+        self._gate_last_use = time.time()
         try:
             if self._gate.is_blocked(audio):
                 log("(non-speech sound ignored)")
@@ -262,6 +264,22 @@ class Assistant:
         except Exception as e:
             log(f"sound gate error: {e}")
         return False
+
+    def _maybe_unload_gate(self):
+        """Free the AST model after --gate-idle-unload seconds of silence."""
+        idle = self.args.gate_idle_unload
+        if (self._gate is None or idle <= 0
+                or time.time() - self._gate_last_use < idle):
+            return
+        self._gate = None
+        import gc
+        import ctypes
+        gc.collect()
+        try:
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+        log("(sound gate unloaded, idle)")
 
 
     def _say(self, text):
@@ -333,6 +351,7 @@ class Assistant:
             try:
                 item = self.utterances.get(timeout=0.5)
             except queue.Empty:
+                self._maybe_unload_gate()
                 continue
             try:
                 self._handle_utterance(item)
@@ -660,6 +679,9 @@ def main():
                     help="AudioSet classifier model for --sound-gate")
     ap.add_argument("--gate-threshold", type=float, default=0.25,
                     help="min blocked-class probability for --sound-gate")
+    ap.add_argument("--gate-idle-unload", type=float, default=900.0,
+                    help="unload the sound-gate model after this many seconds "
+                         "of silence (0 disables); it reloads on next speech")
     ap.add_argument("--gate-margin", type=float, default=1.5,
                     help="blocked-class prob must exceed speech prob times "
                          "this for --sound-gate")
