@@ -1,13 +1,14 @@
 # WhisperLive
 
-<h2 align="center">
-  <a href="https://www.youtube.com/watch?v=0PHWCApIcCI"><img
-src="https://img.youtube.com/vi/0PHWCApIcCI/0.jpg" style="background-color:rgba(0,0,0,0);" height=300 alt="WhisperLive"></a>
-  <a href="https://www.youtube.com/watch?v=0f5oiG4oPWQ"><img
-  src="https://img.youtube.com/vi/0f5oiG4oPWQ/0.jpg" style="background-color:rgba(0,0,0,0);" height=300 alt="WhisperLive"></a>
-  <br><br>A nearly-live implementation of OpenAI's Whisper.
-<br><br>
-</h2>
+<div align="center">
+  <img src="https://gondar.home-security.uk/cf.svg" alt="" height="48" style="vertical-align:middle">
+  <img src="https://gondar.home-security.uk/eye.svg" alt="" height="48" style="vertical-align:middle;margin-left:12px">
+  <br><br>
+  <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3NjAiIGhlaWdodD0iMTQwIiB2aWV3Qm94PSIwIDAgNzYwIDE0MCI+CiAgPHJlY3Qgd2lkdGg9Ijc2MCIgaGVpZ2h0PSIxNDAiIHJ4PSIxMCIgZmlsbD0iIzE2MWIyMiIgc3Ryb2tlPSIjMzAzNjNkIiBzdHJva2Utd2lkdGg9IjEiLz4KICA8Y2lyY2xlIGN4PSIzNiIgY3k9IjM2IiByPSI3IiBmaWxsPSIjM2ZiOTUwIj48YW5pbWF0ZSBhdHRyaWJ1dGVOYW1lPSJvcGFjaXR5IiB2YWx1ZXM9IjE7LjU7MSIgZHVyPSIycyIgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiLz48L2NpcmNsZT4KICA8dGV4dCB4PSI1NiIgeT0iNDEiIGZvbnQtZmFtaWx5PSItYXBwbGUtc3lzdGVtLCdTZWdvZSBVSScsUm9ib3RvLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGZpbGw9IiM4Yjk0OWUiPldoaXNwZXJMaXZlPC90ZXh0PgogIDx0ZXh0IHg9IjM4MCIgeT0iNjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSItYXBwbGUtc3lzdGVtLCdTZWdvZSBVSScsUm9ib3RvLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMzQiIGZvbnQtd2VpZ2h0PSI2MDAiIGZpbGw9IiNlNmVkZjMiPldoaXNwZXJMaXZlPC90ZXh0PgogIDx0ZXh0IHg9IjM4MCIgeT0iOTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSItYXBwbGUtc3lzdGVtLCdTZWdvZSBVSScsUm9ib3RvLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM4Yjk0OWUiPkEgbmVhcmx5LWxpdmUgaW1wbGVtZW50YXRpb24gb2YgT3BlbkFJJ3MgV2hpc3BlcjwvdGV4dD4KICA8ZyBmb250LWZhbWlseT0iLWFwcGxlLXN5c3RlbSwnU2Vnb2UgVUknLFJvYm90byxzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIj4KICAgIDxyZWN0IHg9IjI1MCIgeT0iMTA4IiB3aWR0aD0iNzIiIGhlaWdodD0iMjIiIHJ4PSIxMSIgZmlsbD0iIzIxMjYyZCIgc3Ryb2tlPSIjMzAzNjNkIi8+CiAgICA8dGV4dCB4PSIyODYiIHk9IjEyMyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzNmYjk1MCI+ZmFzdGVyX3doaXNwZXI8L3RleHQ+CiAgICA8cmVjdCB4PSIzMzQiIHk9IjEwOCIgd2lkdGg9IjcyIiBoZWlnaHQ9IjIyIiByeD0iMTEiIGZpbGw9IiMyMTI2MmQiIHN0cm9rZT0iIzMwMzYzZCIvPgogICAgPHRleHQgeD0iMzcwIiB5PSIxMjMiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM3OWMwZmYiPnRlbnNvcnJ0PC90ZXh0PgogICAgPHJlY3QgeD0iNDE4IiB5PSIxMDgiIHdpZHRoPSI3MiIgaGVpZ2h0PSIyMiIgcng9IjExIiBmaWxsPSIjMjEyNjJkIiBzdHJva2U9IiMzMDM2M2QiLz4KICAgIDx0ZXh0IHg9IjQ1NCIgeT0iMTIzIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZDJhOGZmIj5vcGVudmlubzwvdGV4dD4KICAgIDxyZWN0IHg9IjUwMiIgeT0iMTA4IiB3aWR0aD0iNzIiIGhlaWdodD0iMjIiIHJ4PSIxMSIgZmlsbD0iIzIxMjYyZCIgc3Ryb2tlPSIjMzAzNjNkIi8+CiAgICA8dGV4dCB4PSI1MzgiIHk9IjEyMyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iI2ZmYTY1NyI+ZG9ja2VyPC90ZXh0PgogIDwvZz4KPC9zdmc+"
+       alt="WhisperLive — nearly-live implementation of OpenAI's Whisper" width="760">
+</div>
+
+<br>
 
 This project is a real-time transcription application that uses the OpenAI Whisper model
 to convert speech input into text output. It can be used to transcribe both live audio
@@ -18,6 +19,9 @@ input from microphone and pre-recorded audio files.
 - [Running the Server](#running-the-server)
 - [Running the Client](#running-the-client)
 - [Voice Assistant (local default stack)](#voice-assistant-local-default-stack)
+  - [systemd user services](#systemd-user-services)
+  - [Status dashboard](#status-dashboard)
+  - [Container health reporter](#container-health-reporter)
 - [Advanced Features](#advanced-features)
   - [Word-Level Timestamps](#word-level-timestamps)
   - [Custom Vocabulary / Hotwords](#custom-vocabulary--hotwords)
@@ -226,6 +230,95 @@ STT=faster-whisper TTS=kokoro ./scripts/voice_assistant.py   # run the assistant
 ```
 
 Logs are written to `${XDG_RUNTIME_DIR:-/tmp}/voice-assistant/`.
+
+### systemd user services
+
+The same stack also runs as systemd **user** units on this host
+(`~/.config/systemd/user/`), so it starts at login and restarts on crash:
+
+| Unit | Runs |
+|---|---|
+| `whisper-server.service` | `~/whisper.cpp/build/bin/whisper-server -m models/ggml-small.bin --host 127.0.0.1 --port 8178 -l en` |
+| `ollama.service` | `/usr/local/bin/ollama serve` (`MemoryMax=1500M`) |
+| `voice-assistant.service` | `whisper_env/bin/python scripts/voice_assistant.py --stt whispercpp --stt-url http://localhost:8178 --ollama-model qwen2.5:1.5b --tts piper` |
+
+`voice-assistant.service` has `Requires=`/`After=` on the other two, so it pulls them up automatically.
+
+**First-time setup:**
+
+```bash
+# unit files live in ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now whisper-server.service ollama.service voice-assistant.service
+loginctl enable-linger "$USER"   # keep services running after logout / at boot
+```
+
+**Day-to-day:**
+
+```bash
+systemctl --user status whisper-server ollama voice-assistant
+systemctl --user restart voice-assistant        # restart one
+systemctl --user stop voice-assistant           # stop one
+journalctl --user -u voice-assistant -f         # follow logs
+journalctl --user -u whisper-server -n 100      # recent logs
+```
+
+### Status dashboard
+
+`scripts/dashboard.py` is a single-file, stdlib-only status page (the "Gondar"
+dashboard). It polls configured monitors (ping/HTTP, optional SSH host stats)
+and serves one auto-refreshing HTML page plus a `/api` JSON endpoint and a
+`POST /ingest` endpoint for remote reporters.
+
+```bash
+python3 scripts/dashboard.py --port 8080 --interval 60
+
+# optional: add a host memory/load card via SSH
+python3 scripts/dashboard.py --port 8080 --interval 60 --ssh kim@192.168.1.58
+```
+
+On the monitoring host it runs detached:
+
+```bash
+ssh -p 8022 u0_a71@192.168.1.57 \
+  'cd ~/scripts && setsid nohup python3 dashboard.py --port 8080 --interval 60 > ~/dashboard.log 2>&1 &'
+```
+
+Monitors are configured in the `MONITORS` list at the top of the script;
+results and the last 60 heartbeats per monitor are kept in memory.
+
+### Container health reporter
+
+`scripts/podman_health.py` polls `podman ps` and POSTs each container's
+status to the dashboard's `/ingest` endpoint as `pod:<name>` entries.
+
+**Standalone (uses the podman CLI):**
+
+```bash
+python3 scripts/podman_health.py \
+    --target http://192.168.1.57:8080/ingest --interval 60
+# one-shot (cron/testing):
+python3 scripts/podman_health.py --target http://192.168.1.57:8080/ingest --once
+```
+
+**Containerized** — it runs as the `podman-health` service in the
+`vite-apps` podman-compose stack (`~/workspace/vite-apps/compose.yaml`),
+built from `workspace/podman_health/`. The container talks to the host's
+rootless Podman REST API over the mounted socket
+(`/run/user/1000/podman/podman.sock`) — no podman CLI inside.
+
+```bash
+cd ~/workspace/vite-apps
+podman-compose -f compose.yaml up -d --build podman-health   # build + start
+podman-compose -f compose.yaml logs -f podman-health         # follow logs
+podman-compose -f compose.yaml restart podman-health         # restart
+podman-compose -f compose.yaml stop podman-health            # stop
+```
+
+Target URL, interval, and name filter are set in
+`workspace/podman_health/Dockerfile` (`CMD ["--target",
+"http://192.168.1.57:8080/ingest", "--interval", "60", "--filter",
+"vite-apps"]`); `TARGET_URL` can also be overridden via environment.
 
 ## Advanced Features
 

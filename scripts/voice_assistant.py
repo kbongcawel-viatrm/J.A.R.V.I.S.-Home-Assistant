@@ -9,6 +9,8 @@ Prereqs (all in whisper_env unless noted):
     soundfile, pyaudio, requests, numpy. Plus `aplay`/`paplay`/`ffplay` for playback.
     For --stt whispercpp: whisper-server from whisper.cpp on :8178.
     For --stt faster-whisper: faster-whisper package.
+    The sound gate (on by default) additionally needs torch + transformers
+    and downloads the AST AudioSet model on first use.
 
 Usage:
     whisper_env/bin/python scripts/voice_assistant.py [--stt whispercpp] [--tts piper]
@@ -138,6 +140,62 @@ class Speaker:
             except (OSError, subprocess.SubprocessError):
                 continue
         log("WARNING: no audio player found (paplay/aplay/ffplay)")
+
+
+class SoundGate:
+    """Pre-STT AudioSet classifier.
+
+    Scores each utterance with an AST model trained on AudioSet and drops
+    clips dominated by non-speech sounds (dog barks, baby cries, meows,
+    crying, ...) so they never reach the transcriber.
+    """
+
+    DEFAULT_MODEL = "MIT/ast-finetuned-audioset-10-10-0.4593"
+    # AST consumes ~10.24 s of audio per forward pass (1024 frames @ 100 fps)
+    _CHUNK = 160_000  # samples @ 16 kHz
+
+    # AudioSet labels meaning "not a person addressing the assistant":
+    # dogs/other animals and human crying/whimpering (incl. baby cries)
+    _BLOCK_SUBSTR = (
+        "bark", "dog", "canidae", "yip", "howl", "growl", "whimper",
+        "cat", "purr", "meow", "hiss", "caterwaul", "roaring cats",
+        "cry", "sob", "wail", "moan",
+    )
+
+    def __init__(self, model_id, threshold):
+        import torch
+        from transformers import ASTFeatureExtractor, ASTForAudioClassification
+        self._torch = torch
+        self.threshold = threshold
+        self.extractor = ASTFeatureExtractor.from_pretrained(model_id)
+        self.model = ASTForAudioClassification.from_pretrained(model_id)
+        self.model.eval()
+        self._block_idx, self._speech_idx = [], []
+        for idx, name in self.model.config.id2label.items():
+            name = name.lower()
+            if any(s in name for s in self._BLOCK_SUBSTR):
+                self._block_idx.append(int(idx))
+            if "speech" in name:
+                self._speech_idx.append(int(idx))
+
+    def is_blocked(self, audio):
+        """True when the clip is dominated by a blocked sound class."""
+        best_block = best_speech = 0.0
+        for start in range(0, audio.size, self._CHUNK):
+            chunk = audio[start:start + self._CHUNK]
+            inputs = self.extractor(chunk, sampling_rate=SAMPLE_RATE,
+                                     return_tensors="pt")
+            with self._torch.no_grad():
+                logits = self.model(**inputs).logits[0]
+            # AudioSet is multi-label: independent sigmoid per class
+            probs = self._torch.sigmoid(logits).numpy()
+            if self._block_idx:
+                best_block = max(best_block,
+                                 float(probs[self._block_idx].max()))
+            if self._speech_idx:
+                best_speech = max(best_speech,
+                                  float(probs[self._speech_idx].max()))
+        return best_block >= self.threshold and best_block > best_speech
 
 
 class Assistant:
