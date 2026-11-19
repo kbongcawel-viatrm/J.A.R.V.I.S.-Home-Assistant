@@ -17,6 +17,7 @@ input from microphone and pre-recorded audio files.
 - [Getting Started](#getting-started)
 - [Running the Server](#running-the-server)
 - [Running the Client](#running-the-client)
+- [Voice Assistant (local default stack)](#voice-assistant-local-default-stack)
 - [Advanced Features](#advanced-features)
   - [Word-Level Timestamps](#word-level-timestamps)
   - [Custom Vocabulary / Hotwords](#custom-vocabulary--hotwords)
@@ -197,6 +198,34 @@ client(rtsp_url="rtsp://admin:admin@192.168.0.1/rtsp")
 ```python
 client(hls_url="http://as-hls-ww-live.akamaized.net/pool_904/live/ww/bbc_1xtra/bbc_1xtra.isml/bbc_1xtra-audio%3d96000.norewind.m3u8")
 ```
+
+## Voice Assistant (local default stack)
+
+`scripts/voice_assistant.py` is a self-contained interactive voice assistant: microphone -> energy VAD -> STT -> Ollama LLM -> TTS -> speaker. `scripts/voice-assistant-ctl.sh` manages the whole stack with one command.
+
+**Default models (current preferred setup):**
+
+| Stage | Component | Model / endpoint |
+|---|---|---|
+| STT | whisper.cpp `whisper-server` | `ggml-base.bin` on `127.0.0.1:8178` |
+| LLM | Ollama (`/api/chat`) | `qwen2.5:1.5b` on `localhost:11434`, capped at 1.5G RAM |
+| TTS | Piper | `scripts/voices/lessac.onnx` |
+
+```bash
+./scripts/voice-assistant-ctl.sh start    # start whisper-server + ollama + assistant
+./scripts/voice-assistant-ctl.sh status   # show component status
+./scripts/voice-assistant-ctl.sh logs     # tail the conversation log
+./scripts/voice-assistant-ctl.sh stop     # stop everything
+```
+
+Prerequisites: a built whisper.cpp checkout at `~/whisper.cpp` (`build/bin/whisper-server`, model in `models/`), `ollama` in PATH, and the project `whisper_env` venv. Override defaults via environment variables:
+
+```bash
+WHISPER_MODEL=ggml-small.bin OLLAMA_MODEL=qwen2.5:3b MEM_LIMIT=2G ./scripts/voice-assistant-ctl.sh start
+STT=faster-whisper TTS=kokoro ./scripts/voice_assistant.py   # run the assistant directly
+```
+
+Logs are written to `${XDG_RUNTIME_DIR:-/tmp}/voice-assistant/`.
 
 ## Advanced Features
 

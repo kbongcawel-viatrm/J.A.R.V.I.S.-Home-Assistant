@@ -97,6 +97,8 @@ class TestServeClientOpenVINOInitialPromptHotwords(unittest.TestCase):
             "whisper_live.backend.openvino_backend.WhisperOpenVINO"
         ) as mock_whisper_openvino, patch(
             "whisper_live.backend.openvino_backend.threading.Thread"
+        ), patch(
+            "whisper_live.backend.openvino_backend.Core"
         ):
             # Real transcription thread loops forever (speech_to_text) until
             # .exit is set; stub Thread so __init__ doesn't spawn one.

@@ -24,8 +24,13 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import sentencepiece
 
-from transformers.tokenization_utils import BatchEncoding, PreTrainedTokenizer
+from transformers.tokenization_utils import PreTrainedTokenizer
 from transformers.utils import logging
+
+try:
+    from transformers.tokenization_utils import BatchEncoding
+except ImportError:
+    from transformers.tokenization_utils_base import BatchEncoding
 
 
 logger = logging.get_logger(__name__)
