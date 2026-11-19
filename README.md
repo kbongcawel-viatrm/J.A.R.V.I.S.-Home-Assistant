@@ -238,11 +238,11 @@ HF cache) before STT. Clips dominated by dog barks, baby cries, other animal
 sounds, or non-speech vocalizations are dropped (`--sound-gate` /
 `--no-sound-gate`, `--gate-threshold`, `--gate-margin`, `--gate-model`).
 
-Commands: after a bare wake word the assistant enters a 3-minute command
-window (`_CMD_WINDOW`) where short utterances are accepted without repeating
-the wake word. `check status` is safe in window mode; `restart` additionally
-requires the wake word or an explicit `restart <containers|pods|services|
-all>` phrase, so a misheard bare "restart" cannot bounce containers.
+Commands: every command requires the wake word (`jarvis check status`,
+`jarvis restart containers`, ...). There is no command window — whisper
+hallucinates short command-shaped phrases on ambient audio, so anything
+without the wake word is ignored. `restart` still requires either the wake
+word or an explicit `restart <containers|pods|services|all>` target.
 
 The dashboard endpoint defaults to `https://gondar.home-security.uk/api`
 (`--dashboard-url` to override). Using the Cloudflare hostname instead of a

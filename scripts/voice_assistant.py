@@ -237,7 +237,6 @@ class Assistant:
         self.history = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.utterances = queue.Queue()
         self._stop = threading.Event()
-        self._cmd_until = 0.0        # command window expiry (epoch)
         self._speaking_until = 0.0   # echo suppression until (epoch)
         self._gate = None
         self._gate_failed = False
@@ -264,7 +263,6 @@ class Assistant:
             log(f"sound gate error: {e}")
         return False
 
-    _CMD_WINDOW = 180.0  # seconds of command mode after bare wake word
 
     def _say(self, text):
         """Speak and mark a short echo-suppression tail."""
@@ -357,19 +355,9 @@ class Assistant:
             log(f"You: {command or '(wake)'}")
             if not command:
                 self._play_file("jarvis-greetings-response.wav")
-                self._cmd_until = time.time() + self._CMD_WINDOW
                 reply = ""
             else:
                 reply = self._command_reply(command, trusted=True)
-        elif time.time() < self._cmd_until:
-            command = text.strip()
-            # window mode has no wake-word certainty: only accept short,
-            # command-shaped utterances so hallucinated noise stays silent
-            if len(command.split()) > 6:
-                log(f"(cmd-window noise ignored): {command}")
-                return
-            log(f"You (cmd): {command}")
-            reply = self._command_reply(command)
         else:
             log(f"(heard, ignored): {text}")
             return
