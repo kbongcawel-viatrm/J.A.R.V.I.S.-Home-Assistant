@@ -19,6 +19,7 @@ Usage:
 import argparse
 import io
 import queue
+import re
 import subprocess
 import sys
 import tempfile
@@ -155,25 +156,51 @@ class SoundGate:
     _CHUNK = 160_000  # samples @ 16 kHz
 
     # AudioSet labels meaning "not a person addressing the assistant":
-    # dogs/other animals and human crying/whimpering (incl. baby cries)
-    _BLOCK_SUBSTR = (
-        "bark", "dog", "canidae", "yip", "howl", "growl", "whimper",
-        "cat", "purr", "meow", "hiss", "caterwaul", "roaring cats",
-        "cry", "sob", "wail", "moan",
-    )
+    # animal sounds (dogs, pets, livestock, birds, insects) and human
+    # crying/laughter/non-speech vocalizations (incl. baby cries)
+    _BLOCK_LABELS = {
+        # animals
+        "animal", "domestic animals, pets", "wild animals",
+        "dog", "bark", "yip", "howl", "bow-wow", "growling",
+        "whimper (dog)", "canidae, dogs, wolves",
+        "cat", "purr", "meow", "hiss", "caterwaul",
+        "roaring cats (lions, tigers)",
+        "livestock, farm animals, working animals",
+        "horse", "clip-clop", "neigh, whinny",
+        "cattle, bovinae", "moo", "pig", "oink", "goat", "bleat", "sheep",
+        "fowl", "chicken, rooster", "cluck",
+        "crowing, cock-a-doodle-doo", "turkey", "gobble",
+        "duck", "quack", "goose", "honk",
+        "bird", "bird vocalization, bird call, bird song",
+        "chirp, tweet", "squawk", "pigeon, dove", "coo", "crow", "caw",
+        "owl", "hoot", "bird flight, flapping wings",
+        "rodents, rats, mice", "mouse", "patter",
+        "insect", "cricket", "mosquito", "fly, housefly", "buzz",
+        "bee, wasp, etc.", "frog", "croak", "snake", "rattle",
+        "whale vocalization", "roar",
+        # human crying / non-speech vocalizations
+        "crying, sobbing", "baby cry, infant cry", "whimper",
+        "wail, moan", "battle cry",
+        "laughter", "baby laughter", "giggle", "snicker", "belly laugh",
+        "chuckle, chortle",
+        "gasp", "pant", "snort", "cough", "throat clearing", "sneeze",
+        "sniff", "chewing, mastication", "burping, eructation",
+        "hiccup", "grunt", "squeal",
+    }
 
-    def __init__(self, model_id, threshold):
+    def __init__(self, model_id, threshold, margin=1.5):
         import torch
         from transformers import ASTFeatureExtractor, ASTForAudioClassification
         self._torch = torch
         self.threshold = threshold
+        self.margin = margin
         self.extractor = ASTFeatureExtractor.from_pretrained(model_id)
         self.model = ASTForAudioClassification.from_pretrained(model_id)
         self.model.eval()
         self._block_idx, self._speech_idx = [], []
         for idx, name in self.model.config.id2label.items():
             name = name.lower()
-            if any(s in name for s in self._BLOCK_SUBSTR):
+            if name in self._BLOCK_LABELS:
                 self._block_idx.append(int(idx))
             if "speech" in name:
                 self._speech_idx.append(int(idx))
@@ -195,7 +222,8 @@ class SoundGate:
             if self._speech_idx:
                 best_speech = max(best_speech,
                                   float(probs[self._speech_idx].max()))
-        return best_block >= self.threshold and best_block > best_speech
+        return (best_block >= self.threshold
+                and best_block > best_speech * self.margin)
 
 
 class Assistant:
@@ -211,13 +239,39 @@ class Assistant:
         self._stop = threading.Event()
         self._cmd_until = 0.0        # command window expiry (epoch)
         self._speaking_until = 0.0   # echo suppression until (epoch)
+        self._gate = None
+        self._gate_failed = False
 
-    _CMD_WINDOW = 300.0  # seconds of command mode after bare wake word
+    def _reject_non_speech(self, audio):
+        """Drop clips the sound gate classifies as dog/baby cries etc."""
+        if not self.args.sound_gate:
+            return False
+        if self._gate is None and not self._gate_failed:
+            try:
+                self._gate = SoundGate(self.args.gate_model,
+                                       self.args.gate_threshold,
+                                       self.args.gate_margin)
+            except Exception as e:
+                self._gate_failed = True
+                log(f"sound gate unavailable, continuing without it: {e}")
+        if self._gate is None:
+            return False
+        try:
+            if self._gate.is_blocked(audio):
+                log("(non-speech sound ignored)")
+                return True
+        except Exception as e:
+            log(f"sound gate error: {e}")
+        return False
+
+    _CMD_WINDOW = 180.0  # seconds of command mode after bare wake word
 
     def _say(self, text):
         """Speak and mark a short echo-suppression tail."""
         self.speaker.speak(text)
-        self._speaking_until = time.time() + 0.5
+        # cover the VAD silence window or our own voice leaks through as
+        # a fresh utterance right after suppression expires
+        self._speaking_until = time.time() + self.args.silence_seconds + 0.3
 
     def _play_file(self, name):
         """Play a pre-rendered asset from assets/; suppress echo for its duration."""
@@ -232,10 +286,15 @@ class Assistant:
                 capture_output=True, text=True, timeout=10).stdout.strip())
         except Exception:
             dur = 15.0
-        self._speaking_until = time.time() + dur + 0.5
+        self._speaking_until = time.time() + dur + self.args.silence_seconds + 0.3
         Speaker._play(str(path))
 
-    def _command_reply(self, command):
+    # window-mode (no wake word) restart needs an explicit target, so a
+    # bare hallucinated "restart." can't bounce every container
+    _RESTART_EXPLICIT = re.compile(
+        r"\brestart\b\W*(?:the\W+)?(?:containers?|pods?|services?|everything|all)\b")
+
+    def _command_reply(self, command, trusted=False):
         t = " ".join(command.lower().split())
         # "status" almost always means the dashboard check; whisper may
         # mishear "check status" as "czech"/"czech status" etc.
@@ -244,7 +303,7 @@ class Assistant:
         if is_status:
             self._play_file("jarvis-check-status-response.wav")
             return self._service_summary()
-        if "restart" in t:
+        if "restart" in t and (trusted or self._RESTART_EXPLICIT.search(t)):
             self._play_file("jarvis-restart-response.wav")
             return self._restart_containers()
         if self.args.freeform:
@@ -288,6 +347,8 @@ class Assistant:
         if captured_at < self._speaking_until:
             log("(echo ignored)")
             return
+        if self._reject_non_speech(audio):
+            return
         text = self._transcribe(audio)
         if len(text) < 2 or text.lstrip()[:1] in "[(":
             return  # short/empty or whisper noise-tag like [INAUDIBLE]/(whooshing)
@@ -299,7 +360,7 @@ class Assistant:
                 self._cmd_until = time.time() + self._CMD_WINDOW
                 reply = ""
             else:
-                reply = self._command_reply(command)
+                reply = self._command_reply(command, trusted=True)
         elif time.time() < self._cmd_until:
             command = text.strip()
             # window mode has no wake-word certainty: only accept short,
@@ -410,7 +471,7 @@ class Assistant:
         self._play_file("jarvis-pre-alarm-response.wav")
         while not self._stop.is_set():
             Speaker._play(str(path))
-            self._speaking_until = time.time() + 0.5
+            self._speaking_until = time.time() + self.args.silence_seconds + 0.3
             try:
                 monitors = requests.get(
                     self.args.dashboard_url, timeout=10
@@ -602,6 +663,18 @@ def main():
                     help="seconds between service-status polls for alerts; 0 disables")
     ap.add_argument("--freeform", action="store_true",
                     help="send unrecognized commands to the LLM (default: whitelist only)")
+    ap.add_argument("--sound-gate", action=argparse.BooleanOptionalAction,
+                    default=True,
+                    help="drop dog/baby cries and other non-speech sounds "
+                         "before STT (downloads the AST AudioSet model "
+                         "on first use)")
+    ap.add_argument("--gate-model", default=SoundGate.DEFAULT_MODEL,
+                    help="AudioSet classifier model for --sound-gate")
+    ap.add_argument("--gate-threshold", type=float, default=0.25,
+                    help="min blocked-class probability for --sound-gate")
+    ap.add_argument("--gate-margin", type=float, default=1.5,
+                    help="blocked-class prob must exceed speech prob times "
+                         "this for --sound-gate")
     args = ap.parse_args()
     Assistant(args).run()
 

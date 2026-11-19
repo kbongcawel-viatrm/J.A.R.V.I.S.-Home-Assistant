@@ -46,10 +46,10 @@ input from microphone and pre-recorded audio files.
 ```
 On Debian/Ubuntu this installs `portaudio19-dev`, on Fedora `portaudio-devel`, on macOS it uses Homebrew (`portaudio`).
 
-- Install 3.12 venv (on Fedora `sudo dnf install -y python3.12 python3.12-pip`)
+- Install 3.13 venv (on Fedora `sudo dnf install -y python3.13 python3.13-pip`)
 
 ```bash
-python3.12 -m venv whisper_env
+python3.13 -m venv whisper_env
 source whisper_env/bin/activate
 ```
 
@@ -232,6 +232,18 @@ STT=faster-whisper TTS=kokoro ./scripts/voice_assistant.py   # run the assistant
 
 Logs are written to `${XDG_RUNTIME_DIR:-/tmp}/voice-assistant/`.
 
+**Sound gate:** by default each utterance is scored by an AudioSet
+classifier (`MIT/ast-finetuned-audioset-10-10-0.4593`, downloaded once to the
+HF cache) before STT. Clips dominated by dog barks, baby cries, other animal
+sounds, or non-speech vocalizations are dropped (`--sound-gate` /
+`--no-sound-gate`, `--gate-threshold`, `--gate-margin`, `--gate-model`).
+
+Commands: after a bare wake word the assistant enters a 3-minute command
+window (`_CMD_WINDOW`) where short utterances are accepted without repeating
+the wake word. `check status` is safe in window mode; `restart` additionally
+requires the wake word or an explicit `restart <containers|pods|services|
+all>` phrase, so a misheard bare "restart" cannot bounce containers.
+
 ### systemd user services
 
 The same stack also runs as systemd **user** units on this host
@@ -244,6 +256,15 @@ The same stack also runs as systemd **user** units on this host
 | `voice-assistant.service` | `whisper_env/bin/python scripts/voice_assistant.py --stt whispercpp --stt-url http://localhost:8178 --ollama-model qwen2.5:1.5b --tts piper` |
 
 `voice-assistant.service` has `Requires=`/`After=` on the other two, so it pulls them up automatically.
+
+On this host the stack runs under systemd — do **not** also run
+`voice-assistant-ctl.sh start`, or you will get two assistants listening on
+the same mic. Use `systemctl --user` for day-to-day control; the ctl script
+remains useful for ad-hoc overrides (`STT=`, `TTS=`, `WHISPER_MODEL=`, ...)
+on hosts without the units. Under systemd, logs go to the journal
+(`journalctl --user -u voice-assistant -f`); the
+`${XDG_RUNTIME_DIR:-/tmp}/voice-assistant/` log files are only written in
+ctl-script mode.
 
 **First-time setup:**
 
