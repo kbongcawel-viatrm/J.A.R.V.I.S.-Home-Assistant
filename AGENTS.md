@@ -10,3 +10,11 @@
 - **Containers must use the default userns and default user** — no
   `userns_mode`, `user:`, or `--user` overrides. Under rootless Podman the
   default mapping already runs container root as host uid 1000.
+
+## SSH access to gondar
+
+- **Do not use the old direct-key method** (`ssh -i ~/.ssh/...`) for
+  gondar.home-security.uk.
+- Use `workspaceconnect()` from `~/.bashrc` and select the `ai-admin` key,
+  then connect with:
+  `ssh -p 8022 u0_a71@gondar.home-security.uk`
