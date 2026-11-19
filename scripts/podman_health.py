@@ -3,7 +3,7 @@
 
 Runs on the container host (home-security / 10.1.29.2), polls
 `podman ps` every INTERVAL seconds, and POSTs each container's health
-to the dashboard's /ingest endpoint on the monitoring host.
+to the dashboard's /ingest endpoint on gondar.home-security.uk.
 
 Stdlib only. Safe for low-resource hosts.
 

@@ -304,10 +304,10 @@ python3 scripts/dashboard.py --port 8080 --interval 60
 python3 scripts/dashboard.py --port 8080 --interval 60 --ssh kim@10.1.29.2
 ```
 
-On the monitoring host it runs detached:
+On gondar (the monitoring host, `gondar.home-security.uk`) it runs detached:
 
 ```bash
-ssh -p 8022 u0_a71@10.1.29.3 \
+ssh gondar \
   'cd ~/scripts && setsid nohup python3 dashboard.py --port 8080 --interval 60 > ~/dashboard.log 2>&1 &'
 ```
 
