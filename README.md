@@ -5,8 +5,6 @@
   <img src="assets/cf.svg" alt="" height="48" style="vertical-align:middle">
   <img src="assets/eye.svg" alt="" height="48" style="vertical-align:middle;margin-left:12px"> 
   <br><a href="https://gondar.home-security.uk">gondar.home-security.uk</a>
-
-  <br><br>
   <img width="2172" height="724" alt="banner" src="https://github.com/user-attachments/assets/c4960503-ec7a-4747-ba85-dcf384bda16b" />
 
 </div>
