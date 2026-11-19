@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Podman container health agent — pushes status to the remote dashboard.
 
-Runs on the container host (home-security / 192.168.1.58), polls
+Runs on the container host (home-security / 10.1.29.2), polls
 `podman ps` every INTERVAL seconds, and POSTs each container's health
 to the dashboard's /ingest endpoint on the monitoring host.
 
 Stdlib only. Safe for low-resource hosts.
 
 Usage:
-    python3 podman_health.py --target http://192.168.1.57:8080/ingest
-    python3 podman_health.py --target http://192.168.1.57:8080/ingest \
+    python3 podman_health.py --target https://gondar.home-security.uk/ingest
+    python3 podman_health.py --target https://gondar.home-security.uk/ingest \
         --interval 30 --filter vite-apps
 """
 
@@ -55,7 +55,8 @@ def post(target, payload):
         req = urllib.request.Request(
             target,
             data=json.dumps(payload).encode(),
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json",
+                     "User-Agent": "podman-health/1.0"},
             method="POST")
         with urllib.request.urlopen(req, timeout=5) as r:
             return r.status == 200
@@ -66,7 +67,7 @@ def post(target, payload):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", required=True,
-                    help="dashboard ingest URL, e.g. http://192.168.1.57:8080/ingest")
+                    help="dashboard ingest URL, e.g. https://gondar.home-security.uk/ingest")
     ap.add_argument("--interval", type=int, default=60)
     ap.add_argument("--filter", default="",
                     help="only report containers whose name contains this")

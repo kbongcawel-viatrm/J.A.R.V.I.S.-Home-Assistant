@@ -25,13 +25,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 # ---------------------------------------------------------------- monitors
 # type: "ping" | "http" | "ssh"
 MONITORS = [
-    {"name": "BRIDGE (LAN)", "type": "ping", "target": "192.168.1.51"},
+    {"name": "BRIDGE (LAN)", "type": "ping", "target": "10.1.29.1"},
     {"name": "ISP (WAN)",      "type": "ping", "target": "192.168.1.1"},
-    # {"name": "Suricata Logs",  "type": "http", "target": "http://192.168.1.58:8080/"},
+    # {"name": "Suricata Logs",  "type": "http", "target": "http://10.1.29.2:8080/"},
 ]
 
 SCRIPT_DIR = __file__.rsplit("/", 1)[0]
-SSH_TARGET = None          # e.g. "user@192.168.1.58" — enables host mem/cpu card
+SSH_TARGET = None          # e.g. "user@10.1.29.2" — enables host mem/cpu card
 HISTORY_LEN = 60           # heartbeats kept per monitor
 
 _state = {}                # name -> {"up": bool, "ms": float|None, "history": [(up, ms)]}

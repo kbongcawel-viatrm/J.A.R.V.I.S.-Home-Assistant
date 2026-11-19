@@ -212,7 +212,7 @@ client(hls_url="http://as-hls-ww-live.akamaized.net/pool_904/live/ww/bbc_1xtra/b
 
 | Stage | Component | Model / endpoint |
 |---|---|---|
-| STT | whisper.cpp `whisper-server` | `ggml-base.bin` on `127.0.0.1:8178` |
+| STT | whisper.cpp `whisper-server` | `ggml-small.bin` on `127.0.0.1:8178` |
 | LLM | Ollama (`/api/chat`) | `qwen2.5:1.5b` on `localhost:11434`, capped at 1.5G RAM |
 | TTS | Piper | `scripts/voices/lessac.onnx` |
 
@@ -243,6 +243,11 @@ window (`_CMD_WINDOW`) where short utterances are accepted without repeating
 the wake word. `check status` is safe in window mode; `restart` additionally
 requires the wake word or an explicit `restart <containers|pods|services|
 all>` phrase, so a misheard bare "restart" cannot bounce containers.
+
+The dashboard endpoint defaults to `https://gondar.home-security.uk/api`
+(`--dashboard-url` to override). Using the Cloudflare hostname instead of a
+LAN IP means LAN renumbering does not break `check status` or the podman
+health reporter — at the cost of depending on WAN + tunnel being up.
 
 ### systemd user services
 
@@ -296,13 +301,13 @@ and serves one auto-refreshing HTML page plus a `/api` JSON endpoint and a
 python3 scripts/dashboard.py --port 8080 --interval 60
 
 # optional: add a host memory/load card via SSH
-python3 scripts/dashboard.py --port 8080 --interval 60 --ssh kim@192.168.1.58
+python3 scripts/dashboard.py --port 8080 --interval 60 --ssh kim@10.1.29.2
 ```
 
 On the monitoring host it runs detached:
 
 ```bash
-ssh -p 8022 u0_a71@192.168.1.57 \
+ssh -p 8022 u0_a71@10.1.29.3 \
   'cd ~/scripts && setsid nohup python3 dashboard.py --port 8080 --interval 60 > ~/dashboard.log 2>&1 &'
 ```
 
@@ -318,9 +323,9 @@ status to the dashboard's `/ingest` endpoint as `pod:<name>` entries.
 
 ```bash
 python3 scripts/podman_health.py \
-    --target http://192.168.1.57:8080/ingest --interval 60
+    --target https://gondar.home-security.uk/ingest --interval 60
 # one-shot (cron/testing):
-python3 scripts/podman_health.py --target http://192.168.1.57:8080/ingest --once
+python3 scripts/podman_health.py --target https://gondar.home-security.uk/ingest --once
 ```
 
 **Containerized** — it runs as the `podman-health` service in the
@@ -339,7 +344,7 @@ podman-compose -f compose.yaml stop podman-health            # stop
 
 Target URL, interval, and name filter are set in
 `workspace/podman_health/Dockerfile` (`CMD ["--target",
-"http://192.168.1.57:8080/ingest", "--interval", "60", "--filter",
+"https://gondar.home-security.uk/ingest", "--interval", "60", "--filter",
 "vite-apps"]`); `TARGET_URL` can also be overridden via environment.
 
 ## Advanced Features

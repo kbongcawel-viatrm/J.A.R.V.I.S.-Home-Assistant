@@ -7,14 +7,14 @@ Checks:
   3. Memory + CPU of the target host (via SSH, if reachable)
 
 Usage:
-    python3 host_health.py --host 192.168.1.58 --ping 192.168.1.51 192.168.1.1
-    python3 host_health.py --host 192.168.1.58 --ping 192.168.1.51 192.168.1.1 \
-        --ssh user@192.168.1.58
+    python3 host_health.py --host 10.1.29.2 --ping 10.1.29.51 10.1.29.1
+    python3 host_health.py --host 10.1.29.2 --ping 10.1.29.51 10.1.29.1 \
+        --ssh user@10.1.29.2
 
 Options:
     --host IP        Host to check containers/memory on (required)
     --ping IP [IP..] Hosts to ping (repeatable, at least one recommended)
-    --ssh TARGET     SSH target for deep checks (e.g. user@192.168.1.58).
+    --ssh TARGET     SSH target for deep checks (e.g. user@10.1.29.2).
                      Runs: docker ps -a, podman ps -a, sudo -n podman ps -a,
                      free -m, uptime. Requires key auth or ssh-agent.
     --api-port N     Docker/Podman API port to probe (default: try 2375, 8080)

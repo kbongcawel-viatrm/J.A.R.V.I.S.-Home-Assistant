@@ -5,7 +5,7 @@
 #   net-health.sh <docker-host-ip> <ping-ip> [ping-ip ...]
 #
 # Example (this setup):
-#   net-health.sh 192.168.1.58 192.168.1.51 192.168.1.1
+#   net-health.sh 10.1.29.2 10.1.29.51 10.1.29.1
 #
 # Checks:
 #   1. Docker container health on <docker-host-ip> via the Docker API

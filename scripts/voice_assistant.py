@@ -655,7 +655,7 @@ def main():
                             "restart containers. dashboard. services.",
                     help="initial prompt to bias whisper decoding vocabulary")
     ap.add_argument("--dashboard-url",
-                    default="http://192.168.1.57:8080/api",
+                    default="https://gondar.home-security.uk/api",
                     help="dashboard /api endpoint for 'check services' command")
     ap.add_argument("--wake-word", default="jarvis",
                     help="wake word; assistant stays silent until it hears this")
