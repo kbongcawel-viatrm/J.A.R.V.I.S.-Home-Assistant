@@ -246,7 +246,7 @@ hallucinates short command-shaped phrases on ambient audio, so anything
 without the wake word is ignored. `restart` still requires either the wake
 word or an explicit `restart <containers|pods|services|all>` target.
 
-The dashboard endpoint defaults to `https://gondar.home-security.uk/api`
+The dashboard endpoint defaults to `http://gondar.home-security.uk:8080/api`
 (`--dashboard-url` to override). Using the Cloudflare hostname instead of a
 LAN IP means LAN renumbering does not break `check status` or the podman
 health reporter — at the cost of depending on WAN + tunnel being up.
@@ -325,9 +325,9 @@ status to the dashboard's `/ingest` endpoint as `pod:<name>` entries.
 
 ```bash
 python3 scripts/podman_health.py \
-    --target https://gondar.home-security.uk/ingest --interval 60
+    --target http://gondar.home-security.uk:8080/ingest --interval 60
 # one-shot (cron/testing):
-python3 scripts/podman_health.py --target https://gondar.home-security.uk/ingest --once
+python3 scripts/podman_health.py --target http://gondar.home-security.uk:8080/ingest --once
 ```
 
 **Containerized** — it runs as the `podman-health` service in the
@@ -346,7 +346,7 @@ podman-compose -f compose.yaml stop podman-health            # stop
 
 Target URL, interval, and name filter are set in
 `workspace/podman_health/Dockerfile` (`CMD ["--target",
-"https://gondar.home-security.uk/ingest", "--interval", "60", "--filter",
+"http://gondar.home-security.uk:8080/ingest", "--interval", "60", "--filter",
 "vite-apps"]`); `TARGET_URL` can also be overridden via environment.
 
 ## Advanced Features

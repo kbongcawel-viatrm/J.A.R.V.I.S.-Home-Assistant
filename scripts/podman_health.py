@@ -8,8 +8,8 @@ to the dashboard's /ingest endpoint on gondar.home-security.uk.
 Stdlib only. Safe for low-resource hosts.
 
 Usage:
-    python3 podman_health.py --target https://gondar.home-security.uk/ingest
-    python3 podman_health.py --target https://gondar.home-security.uk/ingest \
+    python3 podman_health.py --target http://gondar.home-security.uk:8080/ingest
+    python3 podman_health.py --target http://gondar.home-security.uk:8080/ingest \
         --interval 30 --filter vite-apps
 """
 
@@ -67,7 +67,7 @@ def post(target, payload):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", required=True,
-                    help="dashboard ingest URL, e.g. https://gondar.home-security.uk/ingest")
+                    help="dashboard ingest URL, e.g. http://gondar.home-security.uk:8080/ingest")
     ap.add_argument("--interval", type=int, default=60)
     ap.add_argument("--filter", default="",
                     help="only report containers whose name contains this")
