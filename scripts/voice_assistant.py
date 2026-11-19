@@ -238,6 +238,9 @@ class Assistant:
         self.utterances = queue.Queue()
         self._stop = threading.Event()
         self._speaking_until = 0.0   # echo suppression until (epoch)
+        self._command_deadline = 0.0  # accept one command until (epoch)
+        self._window_timer = None     # fires the auto-bye on window expiry
+        self._capture_rate = SAMPLE_RATE  # mic rate; may differ from SAMPLE_RATE
         self._gate = None
         self._gate_failed = False
         self._gate_last_use = 0.0
@@ -295,15 +298,36 @@ class Assistant:
         if not path.exists():
             log(f"missing asset: {name}")
             return
-        try:
-            dur = float(subprocess.run(
-                ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
-                 "-of", "csv=p=0", str(path)],
-                capture_output=True, text=True, timeout=10).stdout.strip())
-        except Exception:
-            dur = 15.0
-        self._speaking_until = time.time() + dur + self.args.silence_seconds + 0.3
         Speaker._play(str(path))
+        # measured from playback end: covers player latency and the VAD
+        # silence window so our own voice can't leak through as an utterance
+        self._speaking_until = time.time() + self.args.silence_seconds + 0.5
+
+    def _clear_window(self):
+        self._command_deadline = 0.0
+        if self._window_timer is not None:
+            self._window_timer.cancel()
+            self._window_timer = None
+
+    def _arm_window_timer(self):
+        if self.args.command_window <= 0:
+            return
+        self._window_timer = threading.Timer(
+            self.args.command_window, self._on_window_expired)
+        self._window_timer.daemon = True
+        self._window_timer.start()
+
+    def _on_window_expired(self):
+        if not self._command_deadline:
+            return  # a command (or bye) already consumed the window
+        self._command_deadline = 0.0
+        self._window_timer = None
+        log("command window expired")
+        self._play_file("jarvis-bye-response.wav")
+
+    # phrases that cancel a pending command window without a reply
+    _BYE_PHRASES = {"bye", "goodbye", "bye jarvis", "goodbye jarvis",
+                    "jarvis bye", "jarvis goodbye"}
 
     # window-mode (no wake word) restart needs an explicit target, so a
     # bare hallucinated "restart." can't bounce every container
@@ -312,6 +336,9 @@ class Assistant:
 
     def _command_reply(self, command, trusted=False):
         t = " ".join(command.lower().split())
+        if t in self._BYE_PHRASES:
+            self._play_file("jarvis-bye-response.wav")
+            return ""
         # "status" almost always means the dashboard check; whisper may
         # mishear "check status" as "czech"/"czech status" etc.
         is_status = ("status" in t or "check service" in t or "czech" in t or
@@ -372,11 +399,24 @@ class Assistant:
         if self._wake_hit(text):
             command = self._strip_wake(text).strip(" ,.!?")
             log(f"You: {command or '(wake)'}")
+            self._clear_window()
             if not command:
                 self._play_file("jarvis-greetings-response.wav")
+                # arm a short window for a follow-up command; untrusted so
+                # noise transcribed as bare "restart." can't bounce containers
+                self._command_deadline = time.time() + self.args.command_window
+                self._arm_window_timer()
                 reply = ""
             else:
                 reply = self._command_reply(command, trusted=True)
+        elif time.time() < self._command_deadline:
+            self._clear_window()
+            command = text.strip(" ,.!?")
+            if command.lower() in self._BYE_PHRASES:
+                log("You: bye (standing down)")
+            else:
+                log(f"You: {command}")
+            reply = self._command_reply(command)
         else:
             log(f"(heard, ignored): {text}")
             return
@@ -559,31 +599,58 @@ class Assistant:
         return " ".join(resp.json().get("text", "").split()).strip()
 
     # ---------- mic + energy VAD ----------
-    def _open_stream(self, p):
-        """Open mic stream; auto-pick an input device if --device not given."""
-        device = self.args.device
-        if device is None:
-            for i in range(p.get_device_count()):
-                info = p.get_device_info_by_index(i)
-                if info["maxInputChannels"] <= 0:
-                    continue
-                try:
-                    s = p.open(format=pyaudio.paInt16, channels=1,
-                               rate=SAMPLE_RATE, input=True,
-                               frames_per_buffer=CHUNK,
-                               input_device_index=i)
-                    s.close()
-                    device = i
-                    break
-                except Exception:
-                    continue
-            if device is None:
-                raise RuntimeError("no input device supports 16kHz")
-        self._device = device
+    def _input_devices(self, p):
+        """Candidate input devices: ALSA hostapi only (api-2 devices can crash)."""
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if info["maxInputChannels"] > 0 and info["hostApi"] == 0:
+                yield i, info
+
+    def _open_at(self, p, device, rate):
         return p.open(format=pyaudio.paInt16, channels=1,
-                      rate=SAMPLE_RATE, input=True,
+                      rate=rate, input=True,
                       frames_per_buffer=CHUNK,
                       input_device_index=device)
+
+    def _try_open(self, p, device, info):
+        """Open `device` at 16 kHz, falling back to its native rate."""
+        for rate in (SAMPLE_RATE, int(info["defaultSampleRate"])):
+            try:
+                return self._open_at(p, device, rate), rate
+            except Exception:
+                continue
+        return None, None
+
+    def _open_stream(self, p):
+        """Open mic stream; prefer --device-name match, else first working input."""
+        device = self.args.device
+        stream = rate = None
+        if device is not None:
+            info = p.get_device_info_by_index(device)
+            stream, rate = self._try_open(p, device, info)
+        else:
+            wanted = (self.args.device_name or "").lower()
+            devices = list(self._input_devices(p))
+            if wanted:
+                for i, info in devices:
+                    if wanted in info["name"].lower():
+                        stream, rate = self._try_open(p, i, info)
+                        if stream is not None:
+                            device = i
+                            break
+            if stream is None:
+                for i, info in devices:
+                    stream, rate = self._try_open(p, i, info)
+                    if stream is not None:
+                        device = i
+                        break
+        if stream is None:
+            raise RuntimeError("no input device supports capture")
+        self._device = device
+        self._capture_rate = rate
+        log(f"mic: device {device} ({p.get_device_info_by_index(device)['name']}) "
+            f"at {rate} Hz")
+        return stream
 
     def _listen(self):
         p = pyaudio.PyAudio()
@@ -607,14 +674,14 @@ class Assistant:
                         voiced = np.zeros(0, dtype=np.int16)
                     voiced = np.concatenate([voiced, frame])
                     silence = 0
-                    if len(voiced) >= max_seconds * SAMPLE_RATE:
+                    if len(voiced) >= max_seconds * self._capture_rate:
                         self._push(voiced)
                         voiced = np.zeros(0, dtype=np.int16)
                         in_speech = False
                 elif in_speech:
                     voiced = np.concatenate([voiced, frame])
                     silence += CHUNK
-                    if silence >= int(self.args.silence_seconds * SAMPLE_RATE):
+                    if silence >= int(self.args.silence_seconds * self._capture_rate):
                         self._push(voiced)
                         voiced = np.zeros(0, dtype=np.int16)
                         in_speech = False
@@ -626,7 +693,14 @@ class Assistant:
             p.terminate()
 
     def _push(self, pcm):
-        audio = (pcm.astype(np.float32) / 32768.0)
+        audio = pcm.astype(np.float32) / 32768.0
+        if self._capture_rate != SAMPLE_RATE:
+            from scipy.signal import resample_poly
+            from math import gcd
+            g = gcd(self._capture_rate, SAMPLE_RATE)
+            audio = resample_poly(
+                audio, SAMPLE_RATE // g, self._capture_rate // g
+            ).astype(np.float32)
         self.utterances.put((audio, time.time()))
 
     def run(self):
@@ -642,6 +716,9 @@ def main():
     ap.add_argument("--model", default="tiny", help="faster-whisper model size")
     ap.add_argument("--lang", default="en")
     ap.add_argument("--device", type=int, default=None, help="PyAudio input device index")
+    ap.add_argument("--device-name", default="USB PnP Audio Device",
+                    help="prefer the input device whose name contains this "
+                         "string (case-insensitive); empty disables")
     ap.add_argument("--threshold", type=float, default=500.0,
                     help="RMS speech threshold (int16 scale); raise if it triggers on noise")
     ap.add_argument("--silence-seconds", type=float, default=0.8,
@@ -666,6 +743,9 @@ def main():
                     help="dashboard /api endpoint for 'check services' command")
     ap.add_argument("--wake-word", default="jarvis",
                     help="wake word; assistant stays silent until it hears this")
+    ap.add_argument("--command-window", type=float, default=5.0,
+                    help="seconds after a bare wake word to accept one "
+                         "follow-up command (0 disables)")
     ap.add_argument("--monitor-interval", type=int, default=60,
                     help="seconds between service-status polls for alerts; 0 disables")
     ap.add_argument("--freeform", action="store_true",
