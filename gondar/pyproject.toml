@@ -1,0 +1,21 @@
+[project]
+name = "gondar-ops"
+version = "0.1.0"
+description = "Gondar monitoring dashboard and podman health reporter"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+gondar-dashboard = "gondar_ops.dashboard:main"
+podman-health = "gondar_ops.podman_health:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gondar_ops"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/gondar_ops/cf.svg" = "gondar_ops/cf.svg"
+"src/gondar_ops/eye.svg" = "gondar_ops/eye.svg"

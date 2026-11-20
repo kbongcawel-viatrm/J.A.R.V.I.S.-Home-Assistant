@@ -294,47 +294,72 @@ journalctl --user -u whisper-server -n 100      # recent logs
 
 ### Status dashboard
 
-`scripts/dashboard.py` is a single-file, stdlib-only status page (the "Gondar"
-dashboard). It polls configured monitors (ping/HTTP, optional SSH host stats)
-and serves one auto-refreshing HTML page plus a `/api` JSON endpoint and a
+`gondar/` is a uv-packaged, stdlib-only status page (the "Gondar" dashboard).
+It polls configured monitors (ping/HTTP, optional SSH host stats) and serves
+one auto-refreshing HTML page plus a `/api` JSON endpoint and a
 `POST /ingest` endpoint for remote reporters.
 
 ```bash
-python3 scripts/dashboard.py --port 8080 --interval 60
+cd gondar && uv sync
+uv run gondar-dashboard --port 8080 --interval 60
 
 # optional: add a host memory/load card via SSH
-python3 scripts/dashboard.py --port 8080 --interval 60 --ssh kim@10.1.29.2
+uv run gondar-dashboard --port 8080 --interval 60 --ssh kim@192.168.1.56
 ```
 
-On gondar (the monitoring host, `gondar.home-security.uk`) it runs detached:
+Monitors live in `dashboard.json` (next to `pyproject.toml`, or pass
+`--config <path>`) and are **re-read every poll cycle** — add, remove, or
+edit entries without restarting:
+
+```json
+{
+  "ssh": "kim@192.168.1.56",
+  "monitors": [
+    {"name": "BRIDGE (LAN)", "type": "ping", "target": "192.168.1.58"},
+    {"name": "ISP (LAN)",    "type": "ping", "target": "192.168.1.1"},
+    {"name": "Suricata Logs", "type": "http", "target": "http://192.168.1.56:8080/"}
+  ]
+}
+```
+
+`type` is `"ping"` or `"http"`; `"ssh"` is optional and enables the host
+memory/load card. Heartbeat history (last 60 checks) is kept in memory.
+
+On gondar (the monitoring host, `gondar.home-security.uk`, Android/Termux —
+no uv there) it runs the flat module copy in `~/scripts/` detached:
 
 ```bash
 ssh gondar \
-  'cd ~/scripts && setsid nohup python3 dashboard.py --port 8080 --interval 60 > ~/dashboard.log 2>&1 &'
+  'cd ~/scripts && setsid nohup python3 dashboard.py --port 8080 --interval 60 --bind 0.0.0.0 > ~/dashboard.log 2>&1 &'
 ```
 
-Monitors are configured in the `MONITORS` list at the top of the script;
-results and the last 60 heartbeats per monitor are kept in memory.
+Deploy updates by copying `gondar/src/gondar_ops/dashboard.py` +
+`dashboard.json` to `~/scripts/` and restarting as above.
 
 ### Container health reporter
 
-`scripts/podman_health.py` polls `podman ps` and POSTs each container's
+`gondar_ops.podman_health` polls `podman ps` and POSTs each container's
 status to the dashboard's `/ingest` endpoint as `pod:<name>` entries.
 
 **Standalone (uses the podman CLI):**
 
 ```bash
-python3 scripts/podman_health.py \
-    --target http://gondar.home-security.uk:8080/ingest --interval 60
+cd gondar && uv run podman-health \
+    --target http://127.0.0.1:18080/ingest --interval 60
 # one-shot (cron/testing):
-python3 scripts/podman_health.py --target http://gondar.home-security.uk:8080/ingest --once
+uv run podman-health --target http://127.0.0.1:18080/ingest --once
 ```
 
 **Containerized** — it runs as the `podman-health` service in the
 `vite-apps` podman-compose stack (`~/workspace/vite-apps/compose.yaml`),
-built from `workspace/podman_health/`. The container talks to the host's
+built from `workspace/podman-health/`. The container talks to the host's
 rootless Podman REST API over the mounted socket
-(`/run/user/1000/podman/podman.sock`) — no podman CLI inside.
+(`/run/user/1000/podman/podman.sock`) — no podman CLI inside. Posts go to
+`http://host.containers.internal:18080/ingest`, which reaches the dashboard
+through `gondar-dashboard-forward.service` — a systemd **user** unit on this
+host running `ssh -N -L 0.0.0.0:18080:127.0.0.1:8080 -p 8022
+u0_a71@gondar.home-security.uk` (the dashboard port is filtered inbound on
+the Android host, so traffic rides inside the SSH connection).
 
 ```bash
 cd ~/workspace/vite-apps
@@ -345,9 +370,9 @@ podman-compose -f compose.yaml stop podman-health            # stop
 ```
 
 Target URL, interval, and name filter are set in
-`workspace/podman_health/Dockerfile` (`CMD ["--target",
-"http://gondar.home-security.uk:8080/ingest", "--interval", "60", "--filter",
-"vite-apps"]`); `TARGET_URL` can also be overridden via environment.
+`workspace/podman-health/Dockerfile` (`CMD ["--target",
+"http://host.containers.internal:18080/ingest", "--interval", "60",
+"--filter", "vite-apps"]`).
 
 ## Advanced Features
 

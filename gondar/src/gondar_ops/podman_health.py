@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Podman container health agent — pushes status to the remote dashboard.
+"""Podman container health agent — pushes status to Gondar's dashboard.
 
-Runs on the container host (home-security / 10.1.29.2), polls
+Runs on the container host, polls
 `podman ps` every INTERVAL seconds, and POSTs each container's health
-to the dashboard's /ingest endpoint on gondar.home-security.uk.
+to the dashboard's /ingest endpoint. The dashboard port is filtered
+inbound on the gondar host, so posts go through the local SSH forward
+(gondar-dashboard-forward.service) at 127.0.0.1:18080.
 
 Stdlib only. Safe for low-resource hosts.
 
 Usage:
-    python3 podman_health.py --target http://gondar.home-security.uk:8080/ingest
-    python3 podman_health.py --target http://gondar.home-security.uk:8080/ingest \
+    python3 podman_health.py
+    python3 podman_health.py \
         --interval 30 --filter vite-apps
 """
 
@@ -66,8 +68,8 @@ def post(target, payload):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--target", required=True,
-                    help="dashboard ingest URL, e.g. http://gondar.home-security.uk:8080/ingest")
+    ap.add_argument("--target", default="http://127.0.0.1:18080/ingest",
+                    help="dashboard ingest URL (default: SSH forward to Gondar)")
     ap.add_argument("--interval", type=int, default=60)
     ap.add_argument("--filter", default="",
                     help="only report containers whose name contains this")

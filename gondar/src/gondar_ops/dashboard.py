@@ -7,14 +7,15 @@ Serves one HTML page that auto-refreshes monitor status:
   - optional SSH host checks (memory/cpu) via --ssh
 
 Usage:
-    python3 dashboard.py [--port 8080] [--interval 30]
+    python3 dashboard.py [--bind 192.168.1.51] [--port 8080] [--interval 30]
 
-Monitors are configured in MONITORS below. Results + heartbeat history
-(last 60 checks) are kept in memory.
+Monitors are configured in dashboard.json (re-read every poll cycle).
+Results + heartbeat history (last 60 checks) are kept in memory.
 """
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import threading
@@ -24,18 +25,36 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # ---------------------------------------------------------------- monitors
 # type: "ping" | "http" | "ssh"
-MONITORS = [
-    {"name": "BRIDGE (LAN)", "type": "ping", "target": "10.1.29.1"},
-    {"name": "ISP (WAN)",      "type": "ping", "target": "192.168.1.1"},
-    # {"name": "Suricata Logs",  "type": "http", "target": "http://10.1.29.2:8080/"},
+# Monitor list lives in dashboard.json next to this script and is
+# re-read every poll cycle — edit the file, no restart needed.
+DEFAULT_MONITORS = [
+    {"name": "BRIDGE (LAN)",   "type": "ping", "target": "192.168.1.58"},
+    {"name": "ISP (LAN)",      "type": "ping", "target": "192.168.1.1"},
+    # {"name": "Suricata Logs",  "type": "http", "target": "http://192.168.1.56:8080/"},
 ]
 
 SCRIPT_DIR = __file__.rsplit("/", 1)[0]
-SSH_TARGET = None          # e.g. "user@10.1.29.2" — enables host mem/cpu card
+CONFIG_PATH = "dashboard.json"   # resolved in main(): --config > ./dashboard.json > script dir
+SSH_TARGET = None          # e.g. "user@192.168.1.56" — enables host mem/cpu card
 HISTORY_LEN = 60           # heartbeats kept per monitor
 
 _state = {}                # name -> {"up": bool, "ms": float|None, "history": [(up, ms)]}
 _state_lock = threading.Lock()
+_managed = set()           # monitor names that came from config (safe to prune)
+
+
+def load_config():
+    """Return (monitors, ssh_target) from dashboard.json, or defaults."""
+    try:
+        with open(CONFIG_PATH) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return DEFAULT_MONITORS, None
+    monitors = data.get("monitors", []) if isinstance(data, dict) else []
+    monitors = [m for m in monitors
+                if isinstance(m, dict) and m.get("name") and m.get("target")]
+    ssh = data.get("ssh") if isinstance(data, dict) else None
+    return (monitors or DEFAULT_MONITORS), ssh
 
 
 # ---------------------------------------------------------------- checks
@@ -78,16 +97,16 @@ def check_http(url):
         return False, (time.time() - t0) * 1000
 
 
-def check_ssh_host():
+def check_ssh_host(target):
     """Return dict {"mem_pct": float, "load1": float, "cpus": int} or None."""
-    if not SSH_TARGET or not shutil.which("ssh"):
+    if not target or not shutil.which("ssh"):
         return None
     cmd = ("free -m | awk '/Mem:/{print $3\" \"$2}'; "
            "cut -d' ' -f1 /proc/loadavg; nproc")
     try:
         out = subprocess.run(
             ["ssh", "-o", "ConnectTimeout=4", "-o", "BatchMode=yes",
-             SSH_TARGET, cmd],
+             target, cmd],
             capture_output=True, text=True, timeout=15)
         if out.returncode != 0:
             return None
@@ -115,8 +134,17 @@ def run_check(m):
 def poll_loop(interval):
     host_info = None
     while True:
-        host_info = check_ssh_host() if SSH_TARGET else None
-        for m in MONITORS:
+        monitors, cfg_ssh = load_config()
+        ssh_target = SSH_TARGET or cfg_ssh
+        current = {m["name"] for m in monitors}
+        with _state_lock:
+            for name in list(_state):
+                if name in _managed and name not in current:
+                    del _state[name]
+            _managed.clear()
+            _managed.update(current)
+        host_info = check_ssh_host(ssh_target) if ssh_target else None
+        for m in monitors:
             up, ms = run_check(m)
             with _state_lock:
                 s = _state.setdefault(m["name"], {"history": []})
@@ -158,7 +186,7 @@ PAGE = """<!doctype html>
   .host .stat b { color:#e6edf3; }
   footer { margin-top:20px; color:#6e7681; font-size:11px; text-align:center; }
 </style></head><body><div class="wrap">
-<h1><img src="/cf.svg" alt="" style="height:28px;vertical-align:-6px;margin-right:8px"><img src="/eye.svg" alt="" style="height:28px;vertical-align:-6px;margin-right:8px">Gondar</h1>
+<h1><img src="/cf.svg" alt="" style="height:28px;width:auto;vertical-align:-6px;margin-right:8px"><img src="/eye.svg" alt="" style="height:28px;width:auto;vertical-align:-6px;margin-right:8px">Gondar</h1>
 <div class="sub" id="ts">loading…</div>
 <div id="monitors"></div>
 <div class="card" id="hostcard" style="display:none"><div class="host" id="hoststats"></div></div>
@@ -242,13 +270,15 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.endswith(".svg"):
             name = self.path.rsplit("/", 1)[-1]
             if name in ("cf.svg", "eye.svg"):
-                try:
-                    data = open(SCRIPT_DIR + "/" + name, "rb").read()
-                    self._send(data, "image/svg+xml")
-                    return
-                except OSError:
-                    pass
-            self._send("not found", "text/plain", 404)
+                for d in (os.path.dirname(os.path.abspath(CONFIG_PATH)),
+                          SCRIPT_DIR):
+                    try:
+                        data = open(d + "/" + name, "rb").read()
+                        self._send(data, "image/svg+xml")
+                        return
+                    except OSError:
+                        pass
+                self._send("not found", "text/plain", 404)
         elif self.path.startswith("/api"):
             with _state_lock:
                 monitors = {k: dict(v) for k, v in _state.items()
@@ -261,18 +291,27 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global SSH_TARGET, REFRESH
+    global SSH_TARGET, REFRESH, CONFIG_PATH
     ap = argparse.ArgumentParser()
+    ap.add_argument("--bind", default="0.0.0.0",
+                    help="local address to listen on (default: all interfaces)")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--interval", type=int, default=60, dest="REFRESH_VAL")
     ap.add_argument("--ssh", default=None)
+    ap.add_argument("--config", default=None,
+                    help="path to dashboard.json (default: ./dashboard.json "
+                         "or one next to the script)")
     args = ap.parse_args()
+    if args.config:
+        CONFIG_PATH = args.config
+    elif not os.path.exists("dashboard.json"):
+        CONFIG_PATH = SCRIPT_DIR + "/dashboard.json"
     SSH_TARGET = args.ssh
     REFRESH = args.REFRESH_VAL
 
     threading.Thread(target=poll_loop, args=(args.REFRESH_VAL,), daemon=True).start()
-    print(f"dashboard on http://0.0.0.0:{args.port}  (refresh {args.REFRESH_VAL}s)")
-    ThreadingHTTPServer(("0.0.0.0", args.port), Handler).serve_forever()
+    print(f"dashboard on http://{args.bind}:{args.port}  (refresh {args.REFRESH_VAL}s)")
+    ThreadingHTTPServer((args.bind, args.port), Handler).serve_forever()
 
 
 if __name__ == "__main__":
